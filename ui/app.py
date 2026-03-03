@@ -21,7 +21,7 @@ load_dotenv()
 from graph_db.neo4j_connection import Neo4jConnection
 from graph_db.load_data import GraphLoader
 from agents.orchestrator import OrchestratorAgent
-from weather_scraper import enrich_roads_with_weather
+from data_ingestion.weather_scraper import enrich_roads_with_weather
 
 # ------------------------------------------------
 # PAGE CONFIG
