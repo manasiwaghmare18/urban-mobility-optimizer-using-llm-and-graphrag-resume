@@ -93,6 +93,9 @@ st.title("📊 Route Analysis")
 # ------------------------------------------------
 # LIVE WEATHER UPDATE
 # ------------------------------------------------
+# ------------------------------------------------
+# LIVE WEATHER UPDATE (FIXED VERSION)
+# ------------------------------------------------
 if update_weather_clicked:
 
     with st.spinner("Fetching live weather and updating graph..."):
@@ -100,12 +103,12 @@ if update_weather_clicked:
         conn = Neo4jConnection()
         loader = GraphLoader()
 
-        # 1️⃣ Fetch road connections (LIMIT to avoid API overload)
+        # 1️⃣ Fetch road connections
         road_segments = conn.execute("""
             MATCH (a:Location)-[:CONNECTS]->(b:Location)
             RETURN a.id AS from_node,
                    b.id AS to_node
-            LIMIT 150
+            LIMIT 100
         """)
 
         # 2️⃣ Fetch node coordinates
@@ -116,8 +119,9 @@ if update_weather_clicked:
                    l.lon AS longitude
         """)
 
+        # IMPORTANT: DO NOT convert to int
         node_dict = {
-            int(n["id"]): {
+            str(n["id"]): {
                 "latitude": float(n["latitude"]),
                 "longitude": float(n["longitude"])
             }
@@ -126,13 +130,20 @@ if update_weather_clicked:
 
         road_list = [
             {
-                "from_node": int(r["from_node"]),
-                "to_node": int(r["to_node"])
+                "from_node": str(r["from_node"]),
+                "to_node": str(r["to_node"])
             }
             for r in road_segments
         ]
 
+        st.write("Road segments fetched:", len(road_list))
+
         enriched = enrich_roads_with_weather(road_list, node_dict)
+
+        st.write("Enriched segments:", len(enriched))
+
+        if enriched:
+            st.write("Sample weather object:", enriched[0].get("weather"))
 
         loader.load_weather(enriched)
 
