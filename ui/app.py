@@ -4,6 +4,7 @@
 import sys
 import os
 
+st.write("API KEY exists:", os.getenv("OPENAI_API_KEY") is not None)
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
@@ -219,6 +220,38 @@ if st.session_state.result:
             """,
             unsafe_allow_html=True
         )
+        
+
+
+
+        st.subheader("📊 Cost vs Travel Time Comparison")
+
+        chart_df = pd.DataFrame({
+        "Mode": ["Car", "Bus", "Metro"],
+        "Cost": [
+        float(result["cost"]["car_cost_rs"]),
+        float(result["cost"]["bus_cost_rs"]),
+        float(result["cost"]["metro_cost_rs"]),
+        ],
+        "Time": [
+        float(result["cost"]["car_time_min"]),
+        float(result["cost"]["bus_time_min"]),
+        float(result["cost"]["metro_time_min"]),
+        ]
+        })
+
+        fig, ax1 = plt.subplots(figsize=(8, 5))
+
+        ax1.bar(chart_df["Mode"], chart_df["Cost"], alpha=0.7)
+        ax1.set_ylabel("Cost (₹)")
+        ax1.set_xlabel("Transport Mode")
+        ax1.set_title("Cost vs Travel Time Comparison")
+
+        ax2 = ax1.twinx()
+        ax2.plot(chart_df["Mode"], chart_df["Time"], marker="o")
+        ax2.set_ylabel("Travel Time (minutes)")
+
+        st.pyplot(fig)
 
 # ------------------------------------------------
 # MAP VIEW
