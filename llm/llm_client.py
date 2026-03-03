@@ -7,7 +7,7 @@ client = OpenAI(
     base_url="https://api.groq.com/openai/v1"
 )
 
-MODEL_NAME = "llama3-8b-8192"
+MODEL_NAME = "mixtral-8x7b-32768"
 
 
 def generate_explanation(route, weather, cost, transport):
