@@ -13,17 +13,21 @@ class Neo4jConnection:
     def __init__(self):
         self.driver = GraphDatabase.driver(
             NEO4J_URI,
-            auth=(NEO4J_USERNAME, NEO4J_PASSWORD)
+            auth=(NEO4J_USERNAME, NEO4J_PASSWORD),
+            max_connection_lifetime=1000,
+            max_connection_pool_size=50,
+            connection_timeout=30
         )
-
-    def close(self):
-        self.driver.close()
 
     def execute(self, query, parameters=None):
         """
-        Always return fully materialized records.
-        This avoids ResultConsumedError in Neo4j 5.x.
+        Execute a write/read query and return fully materialized results.
+        Compatible with Neo4j 5/6 and Aura.
         """
         with self.driver.session(database=NEO4J_DATABASE) as session:
             result = session.run(query, parameters or {})
-            return [record.data() for record in result]
+            return result.data()   # cleaner & faster
+
+    def close(self):
+        if self.driver:
+            self.driver.close()
