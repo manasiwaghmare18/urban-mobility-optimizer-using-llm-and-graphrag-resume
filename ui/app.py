@@ -1,23 +1,8 @@
 # ------------------------------------------------
-# FIX PYTHON PATH
+# FIX PYTHON PATH (MUST BE FIRST)
 # ------------------------------------------------
-
 import sys
 import os
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-import streamlit
-import neo4j
-import pandas
-import matplotlib
-
-import requests
-import openai
-
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
 
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if PROJECT_ROOT not in sys.path:
@@ -30,8 +15,13 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from graph_db.neo4j_connection import Neo4jConnection
+from graph_db.load_data import GraphLoader
 from agents.orchestrator import OrchestratorAgent
+from weather_scraper import enrich_roads_with_weather
 
 # ------------------------------------------------
 # PAGE CONFIG
@@ -42,7 +32,7 @@ st.set_page_config(
 )
 
 # ------------------------------------------------
-# CUSTOM CSS (SIDEBAR MAP BACKGROUND)
+# CUSTOM SIDEBAR STYLE
 # ------------------------------------------------
 st.markdown("""
 <style>
@@ -82,10 +72,7 @@ location_names = locations_df["name"].tolist()
 # ------------------------------------------------
 with st.sidebar:
     st.markdown("## 🚦 Urban Mobility AI")
-    st.markdown(
-        "<p class='sidebar-text'>Hyderabad Smart Travel</p>",
-        unsafe_allow_html=True
-    )
+    st.markdown("<p class='sidebar-text'>Hyderabad Smart Travel</p>", unsafe_allow_html=True)
     st.divider()
 
     st.markdown("### 📍 Select Route")
@@ -95,16 +82,71 @@ with st.sidebar:
     find_clicked = st.button("🔍 Find Best Route")
     map_clicked = st.button("🗺️ Show Map")
 
+    st.divider()
+    update_weather_clicked = st.button("🌦 Update Live Weather")
+
 # ------------------------------------------------
-# MAIN CONTENT
+# MAIN TITLE
 # ------------------------------------------------
 st.title("📊 Route Analysis")
+
+# ------------------------------------------------
+# LIVE WEATHER UPDATE
+# ------------------------------------------------
+if update_weather_clicked:
+
+    with st.spinner("Fetching live weather and updating graph..."):
+
+        conn = Neo4jConnection()
+        loader = GraphLoader()
+
+        # 1️⃣ Fetch road connections (LIMIT to avoid API overload)
+        road_segments = conn.execute("""
+            MATCH (a:Location)-[:CONNECTS]->(b:Location)
+            RETURN a.id AS from_node,
+                   b.id AS to_node
+            LIMIT 150
+        """)
+
+        # 2️⃣ Fetch node coordinates
+        nodes = conn.execute("""
+            MATCH (l:Location)
+            RETURN l.id AS id,
+                   l.lat AS latitude,
+                   l.lon AS longitude
+        """)
+
+        node_dict = {
+            int(n["id"]): {
+                "latitude": float(n["latitude"]),
+                "longitude": float(n["longitude"])
+            }
+            for n in nodes
+        }
+
+        road_list = [
+            {
+                "from_node": int(r["from_node"]),
+                "to_node": int(r["to_node"])
+            }
+            for r in road_segments
+        ]
+
+        enriched = enrich_roads_with_weather(road_list, node_dict)
+
+        loader.load_weather(enriched)
+
+        conn.close()
+        loader.close()
+
+        st.success("✅ Live weather updated successfully!")
 
 # ------------------------------------------------
 # RUN AGENTIC PIPELINE
 # ------------------------------------------------
 if find_clicked:
     with st.spinner("Analyzing route using fully agentic AI pipeline..."):
+
         src = locations_df[locations_df["name"] == source_name].iloc[0]
         dst = locations_df[locations_df["name"] == destination_name].iloc[0]
 
@@ -129,17 +171,12 @@ if st.session_state.result:
     if "error" in result:
         st.error(result["error"])
     else:
-        # -------------------------------
-        # METRICS
-        # -------------------------------
+
         col1, col2, col3 = st.columns(3)
         col1.metric("Distance (km)", result["distance_km"])
         col2.metric("Temperature (°C)", result["weather"]["avg_temperature"])
         col3.metric("Wind Speed (km/h)", result["weather"]["avg_windspeed"])
 
-        # -------------------------------
-        # COST & TIME TABLE
-        # -------------------------------
         st.subheader("💰 Cost & ⏱ Travel Time")
 
         cost_df = pd.DataFrame([
@@ -150,18 +187,11 @@ if st.session_state.result:
 
         st.table(cost_df)
 
-        # -------------------------------
-        # TRANSPORT AVAILABILITY
-        # -------------------------------
         st.subheader("🚍 Transport Availability")
         st.write("**Bus Available:**", result["transport"]["bus_available"])
         st.write("**Metro Available:**", result["transport"]["metro_available"])
 
-        # -------------------------------
-        # AI EXPLANATION
-        # -------------------------------
         st.subheader("🤖 AI Explanation")
-
         st.markdown(
             f"""
             <div style="
@@ -178,64 +208,6 @@ if st.session_state.result:
             """,
             unsafe_allow_html=True
         )
-
-        # -------------------------------
-        # 📊 COST vs TIME ANALYSIS (SAFE)
-        # -------------------------------
-        st.subheader("📊 Cost vs Travel Time Analysis")
-
-        modes = []
-        costs = []
-        times = []
-
-        # Car is always available
-        modes.append("Car")
-        costs.append(result["cost"]["car_cost_rs"])
-        times.append(result["cost"]["car_time_min"])
-
-        # Bus (only if available)
-        if result["transport"]["bus_available"]:
-            modes.append("Bus")
-            costs.append(result["cost"]["bus_cost_rs"])
-            times.append(result["cost"]["bus_time_min"])
-
-        # Metro (only if available)
-        if result["transport"]["metro_available"]:
-            modes.append("Metro")
-            costs.append(result["cost"]["metro_cost_rs"])
-            times.append(result["cost"]["metro_time_min"])
-
-        chart_df = pd.DataFrame({
-            "Mode": modes,
-            "Cost": costs,
-            "Time": times
-        })
-
-        fig, ax1 = plt.subplots(figsize=(8, 5))
-
-        ax1.bar(chart_df["Mode"], chart_df["Cost"], alpha=0.7, label="Cost (₹)")
-        ax1.set_ylabel("Cost (₹)")
-        ax1.set_xlabel("Transport Mode")
-        ax1.set_title("Cost vs Travel Time Comparison")
-        ax1.grid(True, linestyle="--", alpha=0.4)
-
-        ax2 = ax1.twinx()
-        ax2.plot(
-            chart_df["Mode"],
-            chart_df["Time"],
-            marker="o",
-            color="orange",
-            markerfacecolor="black",
-            markeredgecolor="black",
-            linewidth=2,
-            label="Travel Time (min)"
-        )
-        ax2.set_ylabel("Travel Time (minutes)")
-
-        ax1.legend(loc="upper left")
-        ax2.legend(loc="upper right")
-
-        st.pyplot(fig)
 
 # ------------------------------------------------
 # MAP VIEW
