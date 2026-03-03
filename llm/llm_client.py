@@ -53,5 +53,4 @@ Do not ask questions.
         return response.choices[0].message.content.strip()
 
     except Exception as e:
-        print("Groq Error:", e)
-        return "AI explanation could not be generated at this moment."
+        return f"Groq Error: {str(e)}"
