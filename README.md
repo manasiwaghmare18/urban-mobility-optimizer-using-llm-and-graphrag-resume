@@ -330,7 +330,5 @@ C-DAC Hyderabad
 Consider giving the repository a **star ⭐**.
 
 ---
-3️⃣ **Graph database visualization screenshot**
 
-These make the GitHub page look **very professional.**
 
