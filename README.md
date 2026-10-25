@@ -348,7 +348,11 @@ Potential enhancements include:
 PG-DBDA
 C-DAC Hyderabad
 
+# Default Page of App
 
+<p align="center">
+  <img src="Screenshots/Default page of App.png" alt="Streamlit App Default Page" width="900">
+</p>
 
 
 # ⭐ If You Like This Project
