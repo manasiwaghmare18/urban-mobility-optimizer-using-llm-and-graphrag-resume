@@ -15,8 +15,8 @@
 👉 **Try the app here**
 
 ```
-https://urban-mobility-optimizer-using-llm-and-graphrag.streamlit.app/
-```
+[https://urban-mobility-optimizer-using-llm-and-graphrag.streamlit.app/
+](https://urban-mobility-optimizer-using-llm-and-graphrag.streamlit.app/)```
 
 ---
 
