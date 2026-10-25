@@ -1,16 +1,24 @@
 # graph_db/neo4j_connection.py
 
+import logging
+
 from neo4j import GraphDatabase
 from config.settings import (
     NEO4J_URI,
     NEO4J_USERNAME,
     NEO4J_PASSWORD,
-    NEO4J_DATABASE
+    NEO4J_DATABASE,
+    require_neo4j_settings,
 )
+
+# The driver prints a WARNING when a query mentions something that does not exist yet (for example
+# HAS_WEATHER before any weather is stored). That is expected here and not an error, so keep the console clean.
+logging.getLogger("neo4j.notifications").setLevel(logging.ERROR)
 
 
 class Neo4jConnection:
     def __init__(self):
+        require_neo4j_settings()
         self.driver = GraphDatabase.driver(
             NEO4J_URI,
             auth=(NEO4J_USERNAME, NEO4J_PASSWORD),
@@ -30,4 +38,4 @@ class Neo4jConnection:
 
     def close(self):
         if self.driver:
-            self.driver.close()
+            self.driver.close()

@@ -1,0 +1,19 @@
+# Visual theme (committed to git on purpose; only secrets.toml is git-ignored).
+[theme]
+base = "light"
+primaryColor = "#2563EB"
+backgroundColor = "#F4F7FB"
+secondaryBackgroundColor = "#FFFFFF"
+textColor = "#0F172A"
+font = "sans serif"
+
+[theme.sidebar]
+backgroundColor = "#0F2747"
+secondaryBackgroundColor = "#1B3A66"
+textColor = "#E6EDF7"
+
+[client]
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false

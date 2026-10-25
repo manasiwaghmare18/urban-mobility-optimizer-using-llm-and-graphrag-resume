@@ -5,7 +5,7 @@
 ![Python](https://img.shields.io/badge/Python-3.10-blue)
 ![Streamlit](https://img.shields.io/badge/Frontend-Streamlit-red)
 ![Neo4j](https://img.shields.io/badge/GraphDB-Neo4j-green)
-![LLM](https://img.shields.io/badge/LLM-Llama%203.1-purple)
+![LLM](https://img.shields.io/badge/LLM-GPT--OSS%2020B%20(Groq)-purple)
 ![Deployment](https://img.shields.io/badge/Deployment-Streamlit%20Cloud-orange)
 
 ---
@@ -56,92 +56,91 @@ This project solves that problem using:
 
 # 🚀 Key Features
 
-✅ Graph-based shortest path computation using **Neo4j AuraDB**
+✅ True **distance-weighted shortest path (Dijkstra)** on the OpenStreetMap road network of Hyderabad
 ✅ Multi-mode transport comparison (**Car / Bus / Metro**)
 ✅ Travel cost estimation and time calculation
 ✅ Public transport availability detection
 ✅ Real-time weather integration using **Open-Meteo API**
-✅ GraphRAG contextual reasoning
-✅ AI-generated explanation using **Llama 3.1 via Groq**
+✅ Graph context from **Neo4j AuraDB** (nearest bus stops / metro stations, stored weather) passed to the LLM
+✅ **LLM tool-calling agent** that chooses which tools to run (with a fixed-pipeline fallback)
+✅ AI-generated explanation using an LLM on **Groq** (default `openai/gpt-oss-20b`, set with `LLM_MODEL`)
 ✅ Interactive **Streamlit dashboard**
 ✅ Cost vs Travel Time visualization
-✅ Map-based route display
+✅ Map showing the computed route
 
 ---
 
 # 🧠 System Architecture
 
-The system follows a **Fully Agentic AI Architecture**, where specialized agents collaborate to produce the final travel recommendation.
+The system has two planning modes, selectable in the sidebar:
+
+* **Agent mode (default)** – an LLM on Groq (default `openai/gpt-oss-20b`) receives the trip and a set of tools, and **decides which tools to call, in what order, and when to stop**. It can skip steps (e.g. no public-transport check for a very short trip) and react to failures (e.g. retry routing with a larger snap distance). A step limit, argument validation and duplicate-call protection keep it safe. If the LLM cannot be used, the app **falls back to the fixed pipeline** and says why.
+* **Fixed pipeline** – the same steps always run in the same order.
+
+In both modes, cost/time estimation and the final explanation are deterministic finishing steps, not agent decisions. Every run shows a **tool-call trace** so you can see who decided what.
 
 ```
 User Input (Streamlit UI)
         │
         ▼
-Orchestrator Agent
+Orchestrator ── mode: Agent ──► LLM tool-calling loop (agents/agent_loop.py)
+        │                          │  chooses among:
+        │                          ├── find_route         → Route Agent   (Dijkstra, routing/road_graph.py)
+        │                          ├── get_weather        → Weather Agent (Open-Meteo)
+        │                          ├── check_transport    → Transport Agent (Neo4j: nearest stops, both ends)
+        │                          └── get_graph_context  → GraphRAG Agent  (Neo4j facts for the explanation)
         │
-        ├── Route Agent
-        │       → Computes shortest path using Neo4j graph
-        │
-        ├── Weather Agent
-        │       → Fetches real-time weather
-        │
-        ├── Cost Agent
-        │       → Calculates travel cost and time
-        │
-        ├── Transport Agent
-        │       → Detects bus and metro availability
-        │
-        ├── GraphRAG Context Builder
-        │       → Retrieves graph context from Neo4j
-        │
-        ▼
-LLM Reasoning (Groq Llama 3.1)
-        │
-        ▼
-Explainable Travel Recommendation
+        └── mode: Fixed ──► same four tools in a fixed order (PlannerAgent.FIXED_PLAN)
+                   │
+                   ▼
+        Cost Agent (deterministic estimates)  →  facts (cheapest / fastest / balanced computed in Python)
+                   │
+                   ▼
+        LLM explanation (Groq GPT-OSS 20B, grounded in the facts; template fallback if unavailable)
+                   │
+                   ▼
+        Explainable travel recommendation + route map + tool-call trace
 ```
+
+> **Why routing is not done in Neo4j:** Cypher `shortestPath()` minimises the *number of road segments*, not distance, and was capped at 120 hops – it returned inflated distances (≈29 km for a ≈16.6 km trip) and "No route found" for longer trips. Routing now runs Dijkstra in memory on the same `nodes.csv` / `road_segments.csv` used to build the graph. Neo4j is still used for transport lookups and graph context.
 
 ---
 
 # 🗂 Project Structure
 
 ```
-urban-mobility-optimizer/
+urban-mobility-optimizer-using-llm-and-graphrag/
 │
 ├── agents/
-│   ├── planner_agent.py
+│   ├── orchestrator.py        # modes, fallback, deterministic finishing steps
+│   ├── agent_loop.py          # LLM tool-calling loop + safety rails
+│   ├── tools.py               # tool definitions + safe tool execution / trace
+│   ├── planner_agent.py       # fixed plan used by the fixed pipeline
 │   ├── route_agent.py
 │   ├── weather_agent.py
 │   ├── cost_agent.py
 │   ├── transport_agent.py
-│   ├── graph_rag_agent.py
-│   └── orchestrator.py
+│   └── graph_rag_agent.py
 │
-├── config/
-│   └── settings.py
+├── routing/
+│   └── road_graph.py          # Dijkstra on the road network (scipy sparse)
 │
-├── data/
-│   ├── bus_stops.csv
-│   ├── metro_stations.csv
-│   ├── nodes.csv
-│   └── road_segments.csv
-│
-├── graph_db/
-│   ├── neo4j_connection.py
-│   ├── graph_schema.py
-│   └── load_data.py
-│
+├── config/settings.py         # reads secrets from environment variables only
+├── data/                      # nodes, road_segments, bus_stops, metro_stations (cleaned)
+├── data_ingestion/            # OSM road / bus / metro download + Open-Meteo weather
+├── graph_db/                  # Neo4j connection, schema, loader
 ├── llm/
-│   └── llm_client.py
-│
-├── ui/
-│   └── app.py
-│
-├── weather/
-│   └── weather_scraper.py
-│
+│   ├── llm_client.py
+│   └── prompt_templates.py    # grounded prompt + deterministic facts + template fallback
+├── scripts/
+│   ├── clean_metro_stations.py
+│   ├── reload_transport_nodes.py
+│   └── manual_checks/         # live-DB scripts (need real credentials)
+├── tests/                     # pytest suite (no network / DB needed)
+├── ui/app.py
 ├── run_graph_load.py
-├── requirements.txt
+├── .env.example
+├── requirements.txt / requirements-dev.txt
 └── README.md
 ```
 
@@ -160,11 +159,12 @@ urban-mobility-optimizer/
 ## AI / LLM
 
 * **Groq API**
-* **Llama 3.1 Model**
+* **GPT-OSS 20B** (originally Llama 3.1 8B, which Groq retired on 16 Aug 2026)
 
 ## Data Processing
 
 * Pandas
+* NumPy / SciPy (Dijkstra routing)
 * OSMnx
 * NetworkX
 
@@ -192,7 +192,7 @@ Streamlit Cloud (Frontend UI)
 Python Backend
       │
       ├── Neo4j AuraDB
-      │       → Graph shortest path queries
+      │       → Nearest stops / graph context queries
       │
       ├── Open-Meteo API
       │       → Weather data
@@ -208,8 +208,8 @@ Python Backend
 ## 1️⃣ Clone Repository
 
 ```bash
-git clone https://github.com/your-username/urban-mobility-optimizer.git
-cd urban-mobility-optimizer
+git clone https://github.com/manasiwaghmare18/urban-mobility-optimizer-using-llm-and-graphrag.git
+cd urban-mobility-optimizer-using-llm-and-graphrag
 ```
 
 ---
@@ -246,7 +246,7 @@ pip install -r requirements.txt
 
 # 🔐 Environment Configuration
 
-Create `.env` file
+Copy `.env.example` to `.env` (git-ignored) and fill it in. On Streamlit Cloud, put the same names under **App settings → Secrets**. Credentials are never stored in the code.
 
 ```
 NEO4J_URI=neo4j+s://xxxxx.databases.neo4j.io
@@ -265,14 +265,18 @@ GROQ_API_KEY=gsk_xxxxxxxxxxxxx
 python run_graph_load.py
 ```
 
-This loads:
+This loads the road network, bus stops, metro stations and road segments into Neo4j using batched writes (minutes, not hours) and then checks the counts against the CSV files. It is safe to re-run.
 
-* Road network
-* Bus stops
-* Metro stations
-* Road segments
+```
+python run_graph_load.py --dry-run   # show what would be loaded, no database needed
+python run_graph_load.py --only roads # re-run a single stage (locations / roads / bus / metro)
+```
 
-into Neo4j.
+If you are upgrading an existing database, replace the old metro nodes with the cleaned list (Hyderabad Metro only – the earlier file also contained suburban rail, under-construction and duplicate stations):
+
+```
+python scripts/reload_transport_nodes.py --yes
+```
 
 ---
 
@@ -301,7 +305,28 @@ The system displays:
 * Travel time comparison
 * AI-generated explanation
 * Cost vs Time visualization
-* Map showing selected route
+* Map showing the computed route
+* Tool-call trace (which tools ran, who decided, how long, what they returned)
+
+---
+
+# 🧪 Tests
+
+```
+pip install -r requirements-dev.txt
+pytest
+```
+
+The suite needs no network, Neo4j or Groq key (they are faked). It covers routing correctness (including a regression test that distance-based routing beats hop-count routing), transport availability, the agent loop's failure handling, fallback behaviour and a headless run of the Streamlit app.
+
+---
+
+# ⚠️ Known Limitations
+
+* Cost and time are **estimates** from fixed assumptions (₹/km and average speeds, one road distance for all modes). Live traffic, fares, walking and waiting time are not modelled.
+* The road network covers a smaller area than the bus-stop download box; stops more than 1 km from any road are hidden in the UI.
+* Stored weather in Neo4j covers only a sample of road segments; live weather is fetched per request.
+* The small LLM can occasionally pick a poor tool order; the safety net always guarantees a route and cost, and the trace shows what happened.
 
 ---
 

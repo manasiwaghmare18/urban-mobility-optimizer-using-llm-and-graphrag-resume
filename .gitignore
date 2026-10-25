@@ -3,6 +3,8 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.pytest_cache/
+
 
 # Environment files
 .env
@@ -11,10 +13,11 @@ __pycache__/
 # Virtual environment
 venv/
 env/
+!.env.example
 .venv/
 
 # Streamlit
-.streamlit/
+.streamlit/secrets.toml
 
 # OS files
 .DS_Store
@@ -22,3 +25,7 @@ Thumbs.db
 
 # Logs
 *.log
+
+# OSMnx / Overpass download caches (tens of MB, regenerated on demand)
+cache/
+data_ingestion/cache/
