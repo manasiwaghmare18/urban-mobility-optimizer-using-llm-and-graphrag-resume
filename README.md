@@ -361,7 +361,7 @@ C-DAC Hyderabad
 
 # Try : Chhota Anjaiah Nagar To Public Library (Fixed planning Mode)
 <p align="center">
-  <img src="Screenshots/Fixed Mode/Second Default Mode.png" alt="Tried Second example in Fixed mode" width="900">
+  <img src="Screenshots/Fixed Mode/Second Defalut Mode.png" alt="Tried Second example in Fixed mode" width="900">
 </p>
 
 # Try : Ameerpet(Red Line) To Ameerpet (Agent planning Mode)
