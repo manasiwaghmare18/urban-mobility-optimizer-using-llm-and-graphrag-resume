@@ -354,7 +354,23 @@ C-DAC Hyderabad
   <img src="Screenshots/Default page of App.png" alt="Streamlit App Default Page" width="900">
 </p>
 
-# Update Live Weather
+# Try : Ameerpet(Red Line) To Gachibowli Flyover Bus Stop (Agent planning Mode)
+<p align="center">
+  <img src="Screenshots/Agent Mode/First Default Route.png" alt="Tried First example in Agent mode" width="900">
+</p>
+
+# Try : Chhota Anjaiah Nagar To Public Library (Fixed planning Mode)
+<p align="center">
+  <img src="Screenshots/Fixed Mode/Second Default Mode.png" alt="Tried Second example in Fixed mode" width="900">
+</p>
+
+# Try : Ameerpet(Red Line) To Ameerpet (Agent planning Mode)
+<p align="center">
+  <img src="Screenshots/Agent Mode/Third Default Route.png" alt="Tried Third example in Agent mode" width="900">
+</p>
+
+# Update Live Weather 
+# Ameerpet(Red Line) To Gachibowli Flyover Bus Stop (Agent planning Mode)
 <p align="center">
   <img src="Screenshots/First Default Mode ( Agent ) Weather.png" alt="Update Live Weather" width="900">
 </p>
